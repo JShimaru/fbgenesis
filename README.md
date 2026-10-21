@@ -20,10 +20,10 @@ Use the **Field Guide** in game for tactical tips and optional lore notes. The a
 
 ### Solo practice
 
-Serve the static page from the `outputs` folder. For example, from the repository root:
+Serve the static page from the repository root. For example:
 
 ```powershell
-cd outputs
+
 python -m http.server 8000
 ```
 
@@ -39,7 +39,7 @@ npm install
 npm run dev
 ```
 
-The server listens on port `2567` by default. For local multiplayer, keep `outputs/network-config.js` set to `ws://localhost:2567`, open the page in two or more browser sessions, then create/join a room or use Quick Join. The matchmaking queue waits briefly to group players and can form partial matches once at least two players are queued.
+The server listens on port `2567` by default. For local multiplayer, temporarily set `network-config.js` to `ws://localhost:2567`, open the page in two or more browser sessions, then create/join a room or use Quick Join. The matchmaking queue waits briefly to group players and can form partial matches once at least two players are queued.
 
 To check the server TypeScript configuration:
 
@@ -50,12 +50,12 @@ npm run typecheck
 
 ## Deployment
 
-GitHub Pages can serve the static game files, but it cannot host the Colyseus server. Publish the contents of `outputs` as the Pages site, and deploy `server` to a Node.js host that supports WebSockets. Before enabling online play on the published page, set `window.ANIMA_SERVER_URL` in `outputs/network-config.js` to the server’s secure `wss://` address. Solo Practice works without that server.
+GitHub Pages can serve the static game files, but it cannot host the Colyseus server. Publish the repository root as the Pages site, and deploy `server` to a Node.js host that supports WebSockets. The checked-in `network-config.js` points to the beta server at `wss://ptiserver.onrender.com`; keep the production `wss://` address in that file when publishing. Solo Practice works without the server.
 
 ## Project layout
 
-- `outputs/index.html` — game interface, rendering, controls, solo rules, and browser networking client.
-- `outputs/network-config.js` — multiplayer server address used by the browser client.
+- `index.html` — game interface, rendering, controls, solo rules, and browser networking client.
+- `network-config.js` — multiplayer server address used by the browser client.
 - `server/src/main.ts` — Colyseus private-room, public-queue, readiness, activity, and relay logic.
 - `server/package.json` — server development and type-check scripts.
 
