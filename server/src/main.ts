@@ -1,5 +1,7 @@
 import { defineRoom, defineServer, matchMaker, Room, type Client } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 type Subject = { id: string; name: string; ready: boolean; lastActivity: number };
 type HostSnapshot = {
@@ -10,6 +12,50 @@ type HostSnapshot = {
 };
 const CODE_CHANNEL = "$anima-room-codes";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+type LeaderboardPeriod = "daily" | "weekly" | "allTime";
+type ScoreRecord = { id: string; matchId: string; subject: string; score: number; createdAt: number };
+const LEADERBOARD_FILE = resolve(process.env.LEADERBOARD_FILE || "data/leaderboard.json");
+const MAX_SCORE_RECORDS = 10_000;
+function saveLeaderboard(records: ScoreRecord[]) {
+  mkdirSync(dirname(LEADERBOARD_FILE), { recursive: true });
+  writeFileSync(LEADERBOARD_FILE, JSON.stringify(records.slice(-MAX_SCORE_RECORDS)), "utf8");
+}
+function loadLeaderboard(): ScoreRecord[] {
+  if (process.env.LEADERBOARD_PURGE_ON_START === "true") { saveLeaderboard([]); console.log("Leaderboard archive purged at startup."); return []; }
+  try {
+    if (!existsSync(LEADERBOARD_FILE)) return [];
+    const value: unknown = JSON.parse(readFileSync(LEADERBOARD_FILE, "utf8"));
+    return Array.isArray(value) ? value.filter((r): r is ScoreRecord => !!r && typeof r.id === "string" && typeof r.matchId === "string" && typeof r.subject === "string" && Number.isFinite(r.score) && Number.isFinite(r.createdAt)).slice(-MAX_SCORE_RECORDS) : [];
+  } catch (error) { console.error("Could not read leaderboard archive:", error); return []; }
+}
+let scoreArchive = loadLeaderboard();
+function scoreForSubject(player: { id?: unknown; stats?: unknown }, winnerId: string | null) {
+  const stats = player.stats && typeof player.stats === "object" ? player.stats as Record<string, unknown> : {};
+  const points = (key: string) => Math.max(0, Math.min(10_000, Number(stats[key]) || 0));
+  const breakout = Number(stats.breakoutOrder);
+  return Math.min(100_000, points("roundsSurvived") * 2 + points("hits") * 3 + points("specialAttacks") * 2 + points("evades") * 4 + points("eai") * 2 + (breakout === 1 ? 10 : breakout === 2 ? 5 : 0) + (player.id === winnerId ? 20 : 0));
+}
+function leaderboardRows(period: LeaderboardPeriod) {
+  const now = Date.now(), cutoff = period === "daily" ? now - 86_400_000 : period === "weekly" ? now - 604_800_000 : 0;
+  return scoreArchive.filter((record) => record.createdAt >= cutoff).sort((a, b) => b.score - a.score || a.createdAt - b.createdAt).slice(0, 10);
+}
+function recordFinishedTrial(snapshot: HostSnapshot, roomCode: string) {
+  if (!Array.isArray(snapshot.players)) return;
+  const matchId = String(snapshot.trialId || (roomCode + "-" + Date.now())).slice(0, 100);
+  if (scoreArchive.some((record) => record.matchId === matchId)) return;
+  const players = snapshot.players as Array<{ id?: unknown; name?: unknown; alive?: unknown; stats?: unknown }>;
+  const survivors = players.filter((p) => p.alive === true), winnerId = survivors.length === 1 ? String(survivors[0].id || "") : null;
+  const createdAt = Date.now();
+  for (const player of players) {
+    if (typeof player.id !== "string") continue;
+    const subject = String(player.name || "SUBJECT").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, 24) || "SUBJECT";
+    scoreArchive.push({ id: (matchId + ":" + player.id).slice(0, 160), matchId, subject, score: scoreForSubject(player, winnerId), createdAt });
+  }
+  scoreArchive = scoreArchive.slice(-MAX_SCORE_RECORDS);
+  try { saveLeaderboard(scoreArchive); } catch (error) { console.error("Could not save leaderboard archive:", error); }
+  LeaderboardRoom.publishAll();
+}
+
 
 class TrialRoom extends Room {
   maxClients = 8;
@@ -50,9 +96,12 @@ class TrialRoom extends Room {
     this.onMessage("host-state", (client, payload) => {
       if (client.sessionId !== this.hostSessionId || !payload?.state) return;
       if (payload.state.started && !this.hasStarted && (this.subjects.size < 2 || [...this.subjects.values()].some((subject) => !subject.ready))) return;
+      const previousPhase = this.lastHostSnapshot?.phase;
       this.hasStarted = !!payload.state.started;
       if (payload.hostState && typeof payload.hostState === "object") {
-        this.lastHostSnapshot = JSON.parse(JSON.stringify(payload.hostState)) as HostSnapshot;
+        const snapshot = JSON.parse(JSON.stringify(payload.hostState)) as HostSnapshot;
+        if (payload.state.phase === "ended" && previousPhase !== "ended") recordFinishedTrial(snapshot, this.privateCode);
+        this.lastHostSnapshot = snapshot;
       }
       for (const member of this.clients) if (member !== client) member.send("game-state", payload.state);
     });
@@ -168,6 +217,23 @@ class TrialRoom extends Room {
   }
 }
 
+class LeaderboardRoom extends Room {
+  static instances = new Set<LeaderboardRoom>();
+  maxClients = 500;
+  onCreate() {
+    this.setPrivate(false);
+    LeaderboardRoom.instances.add(this);
+    this.onMessage("fetch", (client, payload: { period?: unknown } = {}) => {
+      const period = this.period(payload.period);
+      client.send("leaderboard-data", { period, rows: leaderboardRows(period), updatedAt: Date.now() });
+    });
+  }
+  onJoin(client: Client) { client.send("leaderboard-data", { period: "daily", rows: leaderboardRows("daily"), updatedAt: Date.now() }); }
+  onDispose() { LeaderboardRoom.instances.delete(this); }
+  static publishAll() { for (const room of this.instances) room.broadcast("leaderboard-updated", { updatedAt: Date.now() }); }
+  private period(value: unknown): LeaderboardPeriod { return value === "weekly" || value === "allTime" ? value : "daily"; }
+}
+
 /** Hidden public queue. It waits for at least two subjects, batches up to eight,
  * then creates a separate unlisted match room and issues seat reservations. */
 class PublicQueueRoom extends Room {
@@ -238,6 +304,7 @@ const server = defineServer({
   rooms: {
     game: defineRoom(TrialRoom),
     queue: defineRoom(PublicQueueRoom),
+    leaderboard: defineRoom(LeaderboardRoom),
   },
 });
 
