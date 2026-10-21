@@ -13,6 +13,7 @@ class TrialRoom extends Room {
   private expectedHostSessionId: string | undefined;
   private subjects = new Map<string, Subject>();
   private rosterTimer: ReturnType<typeof setInterval> | undefined;
+  private combatIntentWindows = new Map<string, { startedAt: number; count: number }>();
 
   async onCreate(options: { publicMatch?: boolean; expectedHostSessionId?: string } = {}) {
     this.publicMatch = !!options.publicMatch;
@@ -47,6 +48,18 @@ class TrialRoom extends Room {
     });
     this.onMessage("client-input", (client, payload: { message?: unknown }) => {
       if (!payload?.message || client.sessionId === this.hostSessionId) return;
+      const message = payload.message as { type?: unknown; action?: unknown };
+      if (message.type === "realtime-combat") {
+        if (!this.hasStarted || !["attack", "special", "dash"].includes(String(message.action))) return;
+        const now = Date.now();
+        const window = this.combatIntentWindows.get(client.sessionId);
+        if (!window || now - window.startedAt >= 1000) {
+          this.combatIntentWindows.set(client.sessionId, { startedAt: now, count: 1 });
+        } else {
+          if (window.count >= 10) return;
+          window.count++;
+        }
+      }
       this.clients.find((member) => member.sessionId === this.hostSessionId)
         ?.send("host-input", { from: client.sessionId, message: payload.message });
     });
@@ -81,6 +94,7 @@ class TrialRoom extends Room {
 
   onLeave(client: Client) {
     this.subjects.delete(client.sessionId);
+    this.combatIntentWindows.delete(client.sessionId);
     if (client.sessionId === this.hostSessionId) {
       this.hostSessionId = this.clients[0]?.sessionId || null;
       if (this.hostSessionId) this.clients[0].send("host-role", { host: true });

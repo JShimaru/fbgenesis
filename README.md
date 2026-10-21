@@ -1,9 +1,9 @@
 # Fatale Breathe: Genesis
 A real-time multiplayer survival arena set in a dark sci-fi universe where human lifespan is measured in breaths. Survive the **Anima Protocol.**
 
-**Fatale Breathe: Genesis** is a browser-based, turn-based survival arena prototype and prequel to the *Fatale Breathe* series. Subjects wake inside a sterile research facility, break out of containment, and fight to survive as the arena grows more dangerous. The game introduces the Anima Protocol and hints at the larger world through its observation feed, visual anomalies, and field guide.
+**Fatale Breathe: Genesis** is a browser-based grid survival arena prototype and prequel to the *Fatale Breathe* series. Subjects wake inside a sterile research facility, break out of containment, and fight to survive as the arena grows more dangerous. The game introduces the Anima Protocol and hints at the larger world through its observation feed, visual anomalies, and field guide.
 
-The game runs on desktop and mobile browsers. It supports solo practice against bots, private rooms joined by code, and a public Quick Join queue. The interface keeps Breath values hidden and represents a subject’s condition through their aura.
+The game runs on desktop and mobile browsers. Combat uses real-time grid attacks, telegraphed area strikes, and dash actions; movement still follows the existing timed grid rounds. Use the ATTACK, SPECIAL, and DASH buttons or J, K, and L. It supports solo practice against bots, private rooms joined by code, and a public Quick Join queue. The interface keeps Breath values hidden and represents a subject’s condition through their aura.
 
 ## Play
 
@@ -61,4 +61,4 @@ GitHub Pages can serve the static game files, but it cannot host the Colyseus se
 
 ## Multiplayer testing note
 
-This is a beta-testing build. The current multiplayer arrangement elects a browser client as the room host for shared game-state resolution; the Colyseus server manages rooms and relays state and input. It is suitable for playtesting, but it is not authoritative or hardened against modified clients. Server-side game-rule validation is a future hardening step before competitive or ranked use.
+This is a beta-testing build. The current multiplayer arrangement elects a browser client as the room host for shared game-state resolution; the Colyseus server manages rooms, relays state and input, and rate-limits combat intents. Real-time combat and Spectre updates are resolved by the elected browser host, so this build is for beta playtesting and is not authoritative against modified clients.
