@@ -1,0 +1,18 @@
+from pathlib import Path
+p=Path('outputs/index.html');s=p.read_text(encoding='utf-8')
+js_start=s.rfind('<script');js_end=s.rfind('</script>');js=s[js_start:js_end]
+start=js.find('function positionTrialDebrief(');end=js.find('function updateUI()',start)
+assert start>=0 and end>start
+new_func="""function positionTrialDebrief(mode,players){const wrap=$('#arenaWrap'),panel=$('#trialDebrief'),classes=['debrief-corner-tl','debrief-corner-tr','debrief-corner-bl','debrief-corner-br','debrief-center'];wrap.classList.remove(...classes,'debrief-extinction');panel.style.top='';if(panel.classList.contains('hidden')||typeof wrap.getBoundingClientRect!=='function')return;if(mode==='extinct'){const modal=$('#extinctionOverlay .modal');if(!modal||typeof modal.getBoundingClientRect!=='function')return;wrap.classList.add('debrief-extinction');const wr=wrap.getBoundingClientRect(),mr=modal.getBoundingClientRect();panel.style.top=Math.max(8,mr.bottom-wr.top+8)+'px';return}if(mode!=='winner'||typeof cv.getBoundingClientRect!=='function')return;const wr=wrap.getBoundingClientRect(),cr=cv.getBoundingClientRect(),pw=panel.offsetWidth,ph=panel.offsetHeight,pad=10,items=(players||[]).filter(p=>p.alive||p.dead).map(p=>{const x=cr.left-wr.left+p.x*cr.width/W,y=cr.top-wr.top+p.y*cr.height/H;return p.dead?{l:x-50,r:x+50,t:y-24,b:y+31}:{l:x-43,r:x+43,t:y-37,b:y+24}}),places=[{name:classes[0],l:pad,t:pad},{name:classes[1],l:wr.width-pw-pad,t:pad},{name:classes[2],l:pad,t:wr.height-ph-pad},{name:classes[3],l:wr.width-pw-pad,t:wr.height-ph-pad},{name:classes[4],l:(wr.width-pw)/2,t:(wr.height-ph)/2}],score=c=>{const box={l:c.l,r:c.l+pw,t:c.t,b:c.t+ph};let covered=0,area=0;for(const item of items){const w=Math.max(0,Math.min(box.r,item.r)-Math.max(box.l,item.l)),h=Math.max(0,Math.min(box.b,item.b)-Math.max(box.t,item.t)),overlap=w*h;if(overlap>0){covered++;area+=overlap}}return covered*100000+area};if(score(places[1])===0)return;let best=null,bestScore=Infinity;for(let i=0;i<places.length;i++){if(i===1)continue;const candidateScore=score(places[i]);if(candidateScore<bestScore){bestScore=candidateScore;best=places[i]}}if(best)wrap.classList.add(best.name)}"""
+js=js[:start]+new_func+js[end:]
+old="function makeTrialSiteNetwork(){const pools={EGYPTIAN:['Giza Necropolis','Karnak Temple Complex','Abu Simbel'],'AZTEC':['Teotihuacan','Templo Mayor, Tenochtitlan','Tenochtitlan Causeways'],'GREEK':['Acropolis of Athens','Temple of Apollo, Delphi','Olympia Sanctuary']}"
+new="function makeTrialSiteNetwork(){const pools={EGYPTIAN:['Giza','Karnak','Luxor'],'AZTEC':['Teotihuacan','Tenochtitlan','Chapultepec'],'GREEK':['Athens','Delphi','Olympia']}"
+assert old in js
+js=js.replace(old,new,1)
+old="function formatTrialSite(site){return 'SITE '+site.id+' ['+site.name+' · '+site.culture+']'}function logNetworkUpdate(){const sites=state?.siteNetwork||[];if(sites.length<2)return;const first=Math.floor(Math.random()*sites.length);let second=Math.floor(Math.random()*(sites.length-1));if(second>=first)second++;log('NETWORK UPDATE: '+sites.length+' remote sites linked // '+formatTrialSite(sites[first])+' · '+formatTrialSite(sites[second])+'.')}"
+new="function formatTrialSite(site){return 'SITE '+site.id+' '+site.name.toUpperCase()}function logNetworkUpdate(){const sites=state?.siteNetwork||[];if(sites.length<2)return;const first=Math.floor(Math.random()*sites.length);let second=Math.floor(Math.random()*(sites.length-1));if(second>=first)second++;log('NETWORK UPDATE: SYNCING '+formatTrialSite(sites[first])+' · '+formatTrialSite(sites[second])+'.')}"
+assert old in js
+js=js.replace(old,new,1)
+s=s[:js_start]+js+s[js_end:]
+p.write_text(s,encoding='utf-8')
+print('Updated winner movement threshold and concise site sync labels.')

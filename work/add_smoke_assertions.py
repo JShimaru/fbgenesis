@@ -1,0 +1,5 @@
+from pathlib import Path
+p=Path('work/smoke_solo.js');s=p.read_text()
+s=s.replace("if(doc.querySelector('#startBtn').disabled)throw new Error('Initiate Protocol should be enabled after bots join');", "if(doc.querySelector('#startBtn').disabled)throw new Error('Initiate Protocol should be enabled after bots join');\nif(!doc.querySelector('#log').innerHTML.includes('Practice bots added'))throw new Error('Observation log did not record lobby setup');")
+s=s.replace("if(doc.querySelector('#phase').textContent!=='BREAKOUT')throw new Error('Protocol did not enter breakout: '+doc.querySelector('#phase').textContent);", "if(doc.querySelector('#phase').textContent!=='BREAKOUT')throw new Error('Protocol did not enter breakout: '+doc.querySelector('#phase').textContent);\nif(doc.querySelector('#vitalLabel').textContent!=='ACTIVE')throw new Error('Subject vitals did not update on protocol start');\nif(!doc.querySelector('#log').innerHTML.includes('Protocol initiated'))throw new Error('Observation log did not record the protocol start');")
+p.write_text(s)
