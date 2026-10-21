@@ -1,6 +1,6 @@
 # Fatale Breathe: Genesis multiplayer server
 
-The browser build uses Colyseus for private room codes, public matchmaking, room membership, lobby readiness, activity tracking, and message delivery. During this alpha integration the room host's browser still resolves the existing game rules and publishes the shared arena state.
+The browser build uses Colyseus for private room codes, public matchmaking, room membership, lobby readiness, activity tracking, and message delivery. During this beta integration the room host's browser still resolves the existing game rules and publishes the shared arena state. The room keeps a private latest snapshot so it can promote another connected player if the host leaves; pending round, purge, fight-intro, and special-attack timers resume from their saved deadlines.
 
 ## Run locally
 

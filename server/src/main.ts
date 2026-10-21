@@ -2,6 +2,12 @@ import { defineRoom, defineServer, matchMaker, Room, type Client } from "@colyse
 import { WebSocketTransport } from "@colyseus/ws-transport";
 
 type Subject = { id: string; name: string; ready: boolean; lastActivity: number };
+type HostSnapshot = {
+  started?: boolean;
+  phase?: string;
+  players?: Array<{ id?: string; alive?: boolean; dead?: boolean; contained?: boolean; breath?: number; shield?: number; [key: string]: unknown }>;
+  [key: string]: unknown;
+};
 const CODE_CHANNEL = "$anima-room-codes";
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -14,6 +20,7 @@ class TrialRoom extends Room {
   private subjects = new Map<string, Subject>();
   private rosterTimer: ReturnType<typeof setInterval> | undefined;
   private combatIntentWindows = new Map<string, { startedAt: number; count: number }>();
+  private lastHostSnapshot: HostSnapshot | null = null;
 
   async onCreate(options: { publicMatch?: boolean; expectedHostSessionId?: string } = {}) {
     this.publicMatch = !!options.publicMatch;
@@ -42,8 +49,11 @@ class TrialRoom extends Room {
     });
     this.onMessage("host-state", (client, payload) => {
       if (client.sessionId !== this.hostSessionId || !payload?.state) return;
-      if (payload.state.started && (this.subjects.size < 2 || [...this.subjects.values()].some((subject) => !subject.ready))) return;
+      if (payload.state.started && !this.hasStarted && (this.subjects.size < 2 || [...this.subjects.values()].some((subject) => !subject.ready))) return;
       this.hasStarted = !!payload.state.started;
+      if (payload.hostState && typeof payload.hostState === "object") {
+        this.lastHostSnapshot = JSON.parse(JSON.stringify(payload.hostState)) as HostSnapshot;
+      }
       for (const member of this.clients) if (member !== client) member.send("game-state", payload.state);
     });
     this.onMessage("client-input", (client, payload: { message?: unknown }) => {
@@ -96,8 +106,21 @@ class TrialRoom extends Room {
     this.subjects.delete(client.sessionId);
     this.combatIntentWindows.delete(client.sessionId);
     if (client.sessionId === this.hostSessionId) {
-      this.hostSessionId = this.clients[0]?.sessionId || null;
-      if (this.hostSessionId) this.clients[0].send("host-role", { host: true });
+      const replacement = this.clients.find((member) => member.sessionId !== client.sessionId);
+      this.hostSessionId = replacement?.sessionId || null;
+      if (this.lastHostSnapshot && Array.isArray(this.lastHostSnapshot.players)) {
+        const departed = this.lastHostSnapshot.players.find((player: { id?: string }) => player.id === client.sessionId);
+        if (departed && this.lastHostSnapshot.started && this.lastHostSnapshot.phase !== "ended") {
+          departed.alive = false;
+          departed.dead = true;
+          departed.contained = false;
+          departed.breath = 0;
+          departed.shield = 0;
+        } else {
+          this.lastHostSnapshot.players = this.lastHostSnapshot.players.filter((player: { id?: string }) => player.id !== client.sessionId);
+        }
+      }
+      if (replacement) replacement.send("host-role", { host: true, state: this.lastHostSnapshot });
     }
     this.broadcastRoster();
   }
