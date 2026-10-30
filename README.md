@@ -62,3 +62,8 @@ GitHub Pages can serve the static game files, but it cannot host the Colyseus se
 ## Multiplayer testing note
 
 This is a beta-testing build. The current multiplayer arrangement elects a browser client as the room host for shared game-state resolution; the Colyseus server manages rooms, relays state and input, and rate-limits combat intents. Real-time combat and Spectre updates are resolved by the elected browser host, so this build is for beta playtesting and is not authoritative against modified clients.
+
+
+## Operator orientation briefing
+
+The first-visit briefing and the **Replay Briefing** control load `intro_vid.mp4` from the project root. Keep the clip at that path when publishing. If the file is unavailable or browser autoplay is blocked, the overlay provides a play/skip path so subjects can still enter the lab.

@@ -109,7 +109,7 @@ class TrialRoom extends Room {
       if (!payload?.message || client.sessionId === this.hostSessionId) return;
       const message = payload.message as { type?: unknown; action?: unknown };
       if (message.type === "realtime-combat") {
-        if (!this.hasStarted || !["attack", "special", "dash"].includes(String(message.action))) return;
+        if (!this.hasStarted || !["face", "attack", "special", "dash"].includes(String(message.action))) return;
         const now = Date.now();
         const window = this.combatIntentWindows.get(client.sessionId);
         if (!window || now - window.startedAt >= 1000) {
